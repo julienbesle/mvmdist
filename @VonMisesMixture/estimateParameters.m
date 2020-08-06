@@ -1,4 +1,4 @@
-function [mu, kappa, cProp] = estimateParameters(obj, angles, gamma)
+function [mu, kappa, cProp] = estimateParameters(obj, angles, gamma, varargin)
 % ESTIMATEPARAMETERS This function computes the maximum
 %   likelihood estimates of the distribution parameters mu,
 %   kappa and the mixing proportions for a given set
@@ -20,6 +20,11 @@ function [mu, kappa, cProp] = estimateParameters(obj, angles, gamma)
 %   cProp - Kx1 vector, representing the proportions of all
 %       mixture components in the distribution.
 %
+% PARAMETERS:
+%   ['IncludeCircularUniform', IncludeCircularUniform] - Forces
+%   the kappa parameter of the first distribution to 0, corresponding
+%   to a circular uniform distribution (default = false).
+%
 % LITERATURE:
 %   [1] D.J. Best, N.I. Fisher (1981): "The bias of the maximum
 %       likelihood estimators of the von Mises-Fisher
@@ -35,6 +40,7 @@ function [mu, kappa, cProp] = estimateParameters(obj, angles, gamma)
 
 % Check inputs
 p = inputParser();
+defaultIncludeCircularUniform = false;
 
 p.addRequired('Angles', ...
   @(x) validateattributes(x, ...
@@ -48,7 +54,14 @@ p.addRequired('Gamma', ...
   {'real', '2d', 'nrows', length(angles)}) ...
   );
 
-p.parse(angles, gamma);
+p.addParameter('IncludeCircularUniform', ...
+  defaultIncludeCircularUniform, ...
+  @(x) validateattributes(x, ...
+  {'logical'}, ...
+  {'scalar', 'binary'}) ...
+  );
+
+p.parse(angles, gamma, varargin{:});
 
 % Compute mixing proportions.
 cProp = sum(gamma) ./ size(gamma, 1);
@@ -62,12 +75,13 @@ x = (gamma' * cos(angles)) ./ sum(gamma)';
 y = (gamma' * sin(angles)) ./ sum(gamma)';
 
 % Compute mean angles.
-mu = atan2(y, x);
+mu = atan2(y, x);  %JB: if IncludeCircularUniform is true,
+                   % mu(1) should eventually take any random value
 
-% Compute average distances.
+% Compute average distances. (JB: resultant vector strength)
 d = sqrt(x.^2 + y.^2);
 
-% Use approximation scheme from [1] to estimate kappa.
+% Use approximation scheme from [1] to estimate kappa. (JB: the stonger the vector strength, the narrower the distribution)
 kappa = zeros(obj.nComponents, 1);
 
 if any(d < 0.53)
@@ -83,6 +97,10 @@ end
 if any(d >= 0.85)
   idx = d >= 0.85;
   kappa(idx) = 1 ./ (d(idx).^3 - (4 .* d(idx).^2) + (3 .* d(idx)));
+end
+
+if p.Results.IncludeCircularUniform
+  kappa(1) = 0; % the mandatory circular uniform distribution (first component) always has kappa = 0
 end
 
 % Force results to be column vectors.

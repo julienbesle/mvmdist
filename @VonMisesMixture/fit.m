@@ -21,6 +21,9 @@ function obj = fit(obj, angles, nComponents, varargin)
 %       should be used as a stopping-criterion for the
 %       EM-algorithm during convergence testing (default =
 %       1E-4).
+%   ['IncludeCircularUniform', IncludeCircularUniform] - Whether to
+%   include a mandatory circular uniform distribution (forcing kappa
+%   to 0) in the mixture (default = false).
 %
 % LITERATURE:
 %   [1] Hung et al. (2012): "Self-updating clustering algorithm
@@ -39,6 +42,7 @@ function obj = fit(obj, angles, nComponents, varargin)
 p = inputParser();
 defaultMaxIter = 100;
 defaultErrorThreshold = 1E-4;
+defaultIncludeCircularUniform = false;
 
 p.addRequired('Angles', ...
   @(x) validateattributes(x, ...
@@ -66,6 +70,13 @@ p.addParameter('ErrorThreshold', ...
   {'real', 'scalar', 'nonnegative'}) ...
   );
 
+p.addParameter('IncludeCircularUniform', ...
+  defaultIncludeCircularUniform, ...
+  @(x) validateattributes(x, ...
+  {'logical'}, ...
+  {'scalar', 'binary'}) ...
+  );
+
 p.parse(angles, nComponents, varargin{:});
 
 % Get number of samples
@@ -73,13 +84,23 @@ nSamples = length(p.Results.Angles);
 
 % Check for fixed mean parameters and run conventional k-means to get an 
 % initial clustering
-cIdx = obj.ckmeans(p.Results.Angles, p.Results.NComponents, ...
-  'Replicates', 1);
-
+if p.Results.IncludeCircularUniform % if a circlar uniform distribution is included,
+  nComponents = p.Results.NComponents - 1; % run the initial clustering for one less component
+else
+  nComponents = p.Results.NComponents;
+end
+if nComponents
+  cIdx = obj.ckmeans(p.Results.Angles, nComponents, 'Replicates', 1);
+end
 % Generate initial gamma matrix (hard assignments from k-means results)
-gamma =  zeros(length(p.Results.Angles), p.Results.NComponents);
-for sampleIdx = 1 : nSamples
-  gamma(sampleIdx, cIdx(sampleIdx)) = 1;
+gamma = zeros(length(p.Results.Angles), p.Results.NComponents);
+if p.Results.IncludeCircularUniform % if a circlar uniform distribution is included,
+  gamma(:,1) = 1/p.Results.NComponents; % set its intial contribution to 1/nComponents
+end
+if nComponents
+  for sampleIdx = 1 : nSamples
+    gamma(sampleIdx, p.Results.IncludeCircularUniform+cIdx(sampleIdx)) = 1 - 1/p.Results.NComponents;
+  end
 end
 
 % Normalize
@@ -87,7 +108,7 @@ gamma = gamma + eps;
 gamma = bsxfun(@rdivide, gamma, sum(gamma, 2));
 
 % Get initial parameter estimates
-[muHat, kappaHat, cPropHat] = obj.estimateParameters( p.Results.Angles, gamma );
+[muHat, kappaHat, cPropHat] = obj.estimateParameters( p.Results.Angles, gamma, 'IncludeCircularUniform', p.Results.IncludeCircularUniform);
 
 % Initialize log-likelihood and status parameters
 logLik = -realmax;
@@ -99,7 +120,7 @@ for k = 1 : p.Results.MaxIter
     obj.computeGamma(p.Results.Angles, cPropHat, muHat, kappaHat);
   
   % M-Step: Re-estimate the distribution parameters
-  [muHat, kappaHat, cPropHat] = obj.estimateParameters(angles, gamma);
+  [muHat, kappaHat, cPropHat] = obj.estimateParameters(angles, gamma, 'IncludeCircularUniform', p.Results.IncludeCircularUniform);
   
   % Evaluate the log-likelihood
   logLikNew = ...

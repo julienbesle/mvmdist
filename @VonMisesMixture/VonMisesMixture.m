@@ -127,6 +127,6 @@ classdef VonMisesMixture
   methods (Access = private)
     gamma = computeGamma(obj, angles, weights, cProp, mu, kappa)
     
-    [mu, kappa, cProp] = estimateParameters(obj, angles, weights, gamma)
+    [mu, kappa, cProp] = estimateParameters(obj, angles, weights, gamma, varargin)
   end
 end

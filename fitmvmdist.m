@@ -20,6 +20,9 @@ function obj = fitmvmdist(angles, nComponents, varargin)
 %       estimation procedure. If the number of replications is greater than
 %       one, the parameters of the replicate that yielded the highest
 %       log-likelihood will be returned (default = 1).
+%   ['IncludeCircularUniform', IncludeCircularUniform] - Whether to
+%   include a mandatory circular uniform distribution (forcing kappa
+%   to 0) in the mixture (default = false).
 %
 % DEPENDS ON:
 %   VonMisesMixture.m
@@ -37,6 +40,7 @@ p = inputParser();
 defaultMaxIter = 100;
 defaultErrorThreshold = 1E-4;
 defaultReplicates = 1;
+defaultIncludeCircularUniform = false;
 
 p.addRequired('Angles', ...
   @(x) validateattributes(x, ...
@@ -71,6 +75,13 @@ p.addParameter('Replicates', ...
   {'integer', 'scalar', 'nonnegative'}) ...
   );
 
+p.addParameter('IncludeCircularUniform', ...
+  defaultIncludeCircularUniform, ...
+  @(x) validateattributes(x, ...
+  {'logical'}, ...
+  {'scalar', 'binary'}) ...
+  );
+
 p.parse(angles, nComponents, varargin{:});
 
 % Initialize von Mises mixture models for all replicates
@@ -88,7 +99,8 @@ for rIdx = 1 : p.Results.Replicates
   % Run EM and generate model
   models{rIdx} = model.fit(p.Results.Angles, p.Results.NComponents, ...
     'MaxIter', p.Results.MaxIter, ...
-    'ErrorThreshold', p.Results.ErrorThreshold);
+    'ErrorThreshold', p.Results.ErrorThreshold,...
+    'IncludeCircularUniform', p.Results.IncludeCircularUniform);
   
   % Update maximum log-likelihood
   if models{rIdx}.logLikelihood > maxLogLik
