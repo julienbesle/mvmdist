@@ -13,6 +13,10 @@ proportions = [.3 .3]; % proportion of samples from each von Mises distribution.
 maxNpeaks = 6; % total number of fitted distributions (including the uniform one)
 nSubploLines = 2; %number of rows of plots in figure
 
+if isempty(which('num2words'))
+  num2words = @mat2str;
+end
+
 % generate mixture of distributions
 nVMs = length(proportions); % number of von Mises distributions in the mixture model
 vmMus = linspace(-pi+pi/nVMs,pi-pi/nVMs,nVMs); % equidistant centres of the distributions
